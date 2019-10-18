@@ -1,0 +1,13 @@
+[package]
+name = "wireguard-manager"
+version = "0.1.0"
+authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+tokio-postgres = "~0.5.0-alpha.1"
+tokio = { version = "=0.2.0-alpha.6", features = ["process"] }
+futures-preview = { version = "=0.3.0-alpha.19", features = ["async-await"] }
+futures-util-preview = "~0.3.0-alpha.19"
+failure = "0.1"
+tempfile = "3.1"

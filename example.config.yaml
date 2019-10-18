@@ -1,0 +1,7 @@
+name: "server"
+private_key: "private-key-here"
+keepalive: 25
+device_name: wg-olinfo
+# change the actual path to somewhere safe!
+config_path: "/tmp/wg.conf"
+database_url: "postgresql://postgres@localhost:5432/wireguard"

@@ -1,4 +1,3 @@
-use crate::config::ServerConfig;
 use failure::Error;
 use futures::channel::mpsc;
 use futures::{future, stream};
@@ -13,9 +12,10 @@ mod wireguard;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    let config = config::read()?;
+
     // Connect to the database.
-    let (client, mut connection) =
-        tokio_postgres::connect("postgresql://postgres@localhost:5432", NoTls).await?;
+    let (client, mut connection) = tokio_postgres::connect(&config.database_url, NoTls).await?;
 
     // Forward the notifications to the channel
     let (tx, rx) = mpsc::unbounded();
@@ -28,15 +28,6 @@ async fn main() -> Result<(), Error> {
 
     // Start listening for server notifications
     client.batch_execute("LISTEN update_server").await?;
-
-    // TODO parse the configuration from file
-    let config = ServerConfig {
-        name: "serben".to_string(),
-        private_key: "privatekey".to_string(),
-        keepalive: Some(25),
-        device_name: "wg0".into(),
-        config_path: "/tmp/wg.conf".into(),
-    };
 
     // Initial server setup
     wireguard::setup_server(&config, &client).await?;

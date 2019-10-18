@@ -2,6 +2,7 @@ use std::io::Write;
 
 use failure::{bail, Error};
 use tempfile::NamedTempFile;
+use tokio::net::process::Command;
 use tokio_postgres::Client;
 
 use crate::config::ServerConfig;
@@ -10,12 +11,18 @@ use crate::schema::{ClientConnection, Server};
 
 /// Generate and update the currently running wireguard configuration.
 pub async fn setup_server(config: &ServerConfig, client: &Client) -> Result<(), Error> {
+    make_interface(config).await?;
+    update_server(config, client).await?;
+    Ok(())
+}
+
+pub async fn update_server(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     let server_config = gen_server_config(config, client).await?;
     let mut tmpfile = NamedTempFile::new()?;
     tmpfile.write_all(server_config.as_bytes())?;
     std::fs::rename(tmpfile.path(), &config.config_path)?;
     // TODO: remove `echo`
-    let child = tokio::net::process::Command::new("echo")
+    let child = Command::new("echo")
         .arg("wg")
         .arg("setconf")
         .arg(&config.device_name)
@@ -25,14 +32,41 @@ pub async fn setup_server(config: &ServerConfig, client: &Client) -> Result<(), 
     if child.success() {
         Ok(())
     } else {
-        bail!("Wireguard failed");
+        bail!("Wireguard failed with {:?}", child.code());
+    }
+}
+
+async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
+    // TODO: remove `echo`
+    let child = Command::new("echo")
+        .arg("ip")
+        .args(&[
+            "link",
+            "add",
+            "dev",
+            &config.device_name,
+            "type",
+            "wireguard",
+        ])
+        .spawn()?
+        .await?;
+    if child.success() {
+        Ok(())
+    } else {
+        bail!(
+            "Failed to add the device: ip link add failed with {:?}",
+            child.code()
+        );
     }
 }
 
 /// Generate the configuration of this server fetching its configuration from the database.
 async fn gen_server_config(config: &ServerConfig, client: &Client) -> Result<String, Error> {
     let servers = schema::get_servers(&client).await?;
-    let server = servers.iter().find(|s| s.name == config.name).unwrap();
+    let server = servers
+        .iter()
+        .find(|s| s.name == config.name)
+        .expect("Server is not registered in the db");
     let clients = schema::get_clients(client, &config.name).await?;
     let mut server_conf = gen_server_interface(config, server);
     server_conf += &gen_server_to_server_peers(config, &servers);

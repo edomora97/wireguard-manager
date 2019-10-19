@@ -1,6 +1,5 @@
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 /// The private configuration of a server.
 #[derive(Debug, Clone, Eq, Ord, PartialOrd, PartialEq, Deserialize, Serialize)]
@@ -13,8 +12,6 @@ pub struct ServerConfig {
     pub keepalive: Option<u32>,
     /// The name of the network device to create.
     pub device_name: String,
-    /// The path where to store the configuration file.
-    pub config_path: PathBuf,
     /// The connection string to the database.
     pub database_url: String,
 }

@@ -1,7 +1,10 @@
+# The name of the server, there must be an entry in the database with the same name.
 name: "server"
+# The private key of the server, encoded in base64.
 private_key: "private-key-here"
+# An optional keep-alive to use for every peer.
 keepalive: 25
+# The name of the network device to create.
 device_name: wg-olinfo
-# change the actual path to somewhere safe!
-config_path: "/tmp/wg.conf"
+# The connection string to the database.
 database_url: "postgresql://postgres@localhost:5432/wireguard"

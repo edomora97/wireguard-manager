@@ -20,13 +20,12 @@ pub async fn update_server(config: &ServerConfig, client: &Client) -> Result<(),
     let server_config = gen_server_config(config, client).await?;
     let mut tmpfile = NamedTempFile::new()?;
     tmpfile.write_all(server_config.as_bytes())?;
-    std::fs::rename(tmpfile.path(), &config.config_path)?;
     // TODO: remove `echo`
     let child = Command::new("echo")
         .arg("wg")
         .arg("setconf")
         .arg(&config.device_name)
-        .arg(&config.config_path)
+        .arg(tmpfile.path())
         .spawn()?
         .await?;
     if child.success() {

@@ -1,7 +1,7 @@
 use std::process::Stdio;
 
 use failure::{bail, Error};
-use regex::{Captures, Regex};
+use regex::Regex;
 use tempfile::NamedTempFile;
 use tokio::net::process::Command;
 use tokio_postgres::Client;

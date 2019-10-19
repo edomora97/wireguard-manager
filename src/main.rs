@@ -5,9 +5,8 @@ extern crate log;
 
 use failure::Error;
 use futures::channel::mpsc;
-use futures::prelude::*;
+use futures::{future, stream};
 use futures_util::stream::StreamExt;
-use futures_util::try_future::TryFutureExt;
 use futures_util::try_stream::TryStreamExt;
 use signal_hook::iterator::Signals;
 use tokio::prelude::*;
@@ -47,6 +46,7 @@ async fn main() -> Result<(), Error> {
                 }
                 signal_hook::SIGTERM | signal_hook::SIGINT => {
                     if let Err(e) = wireguard::unsetup_server(&config2) {
+                        error!("Error tearing down the server: {:?}", e);
                         std::process::exit(1);
                     }
                     std::process::exit(0);

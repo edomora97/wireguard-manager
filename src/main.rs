@@ -1,4 +1,7 @@
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate lazy_static;
 
 use crate::config::ServerConfig;
@@ -17,10 +20,14 @@ mod wireguard;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    env_logger::init();
+
     let config = config::read()?;
 
     // Connect to the database.
+    debug!("Connecting to the database");
     let (client, mut connection) = tokio_postgres::connect(&config.database_url, NoTls).await?;
+    debug!("Connected to the database");
 
     // Forward the notifications to the channel
     let (tx, rx) = mpsc::unbounded();
@@ -30,12 +37,14 @@ async fn main() -> Result<(), Error> {
 
     // Make sure the schema is present
     schema::create_schema(&client).await?;
+    debug!("Schema created");
 
     // Start listening for server notifications
     client.batch_execute("LISTEN update_server").await?;
 
     // Initial server setup
     wireguard::setup_server(&config).await?;
+    info!("Server setup done");
     update_server(&config, &client).await;
 
     // Listen for server notifications
@@ -44,7 +53,7 @@ async fn main() -> Result<(), Error> {
         _ => future::ready(None),
     })
     .for_each(|m| {
-        println!("notification: {:?}", m);
+        info!("Database update notification: {:?}", m);
         update_server(&config, &client)
     })
     .await;
@@ -53,6 +62,7 @@ async fn main() -> Result<(), Error> {
 
 /// Update the server, first updating wireguard and then the DNS.
 async fn update_server(config: &ServerConfig, client: &Client) {
+    info!("Updating server configuration");
     wireguard::update_server(&config, &client)
         .map(|res| res.unwrap())
         .await;

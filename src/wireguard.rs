@@ -51,10 +51,21 @@ async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
         .spawn()?
         .await?;
     if child.success() {
+        info!("Interface {} created successfully", config.device_name);
+    } else {
+        bail!("Failed to add the device: exit code {:?}", child.code());
+    }
+    let child = Command::new("echo")
+        .arg("ip")
+        .args(&["link", "set", "up", "dev", &config.device_name])
+        .spawn()?
+        .await?;
+    if child.success() {
+        info!("Interface {} brought up successfully", config.device_name);
         Ok(())
     } else {
         bail!(
-            "Failed to add the device: ip link add failed with {:?}",
+            "Failed to bring up the device: exit code {:?}",
             child.code()
         );
     }
@@ -85,6 +96,12 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
         let len = u8::from_str(&ip[2])?;
         // wrong ip or wrong network length
         if addr != server.address || len != server.subnet_len {
+            warn!(
+                "Wrong address {}/{} found in {}, removing it",
+                addr.to_string(),
+                len,
+                config.device_name
+            );
             remove_ip(config, addr, len).await?;
         } else {
             present = true;
@@ -92,6 +109,12 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
     }
     // address is not already present, add it
     if !present {
+        info!(
+            "Adding address {}/{} to device {}",
+            server.address.to_string(),
+            server.subnet_len,
+            config.device_name
+        );
         add_ip(config, server.address, server.subnet_len).await?;
     }
     Ok(())
@@ -107,6 +130,12 @@ async fn remove_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<()
         .spawn()?
         .await?;
     if cmd.success() {
+        info!(
+            "Removed {}/{} from {}",
+            address.to_string(),
+            len,
+            config.device_name
+        );
         Ok(())
     } else {
         bail!(
@@ -129,6 +158,12 @@ async fn add_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), E
         .spawn()?
         .await?;
     if cmd.success() {
+        info!(
+            "Added {}/{} to {}",
+            address.to_string(),
+            len,
+            config.device_name
+        );
         Ok(())
     } else {
         bail!(
@@ -144,6 +179,7 @@ async fn add_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), E
 /// Build the last version of the wireguard configuration and use it.
 async fn ensure_conf(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     let server_config = gen_server_config(config, client).await?;
+    debug!("Wireguard configuration is:\n{}", server_config);
     let tmpfile = NamedTempFile::new()?;
     tokio::fs::write(tmpfile.path().to_path_buf(), server_config.as_bytes()).await?;
     // TODO: remove `echo`
@@ -155,6 +191,7 @@ async fn ensure_conf(config: &ServerConfig, client: &Client) -> Result<(), Error
         .spawn()?
         .await?;
     if child.success() {
+        info!("Wireguard configuration updated successfully");
         Ok(())
     } else {
         bail!("Wireguard failed with {:?}", child.code());

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 use crate::config::ServerConfig;
 use failure::Error;
 use futures::channel::mpsc;
@@ -32,7 +35,7 @@ async fn main() -> Result<(), Error> {
     client.batch_execute("LISTEN update_server").await?;
 
     // Initial server setup
-    wireguard::setup_server(&config, &client).await?;
+    wireguard::setup_server(&config).await?;
     update_server(&config, &client).await;
 
     // Listen for server notifications

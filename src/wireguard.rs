@@ -1,4 +1,7 @@
+use std::process::Stdio;
+
 use failure::{bail, Error};
+use regex::Regex;
 use tempfile::NamedTempFile;
 use tokio::net::process::Command;
 use tokio_postgres::Client;
@@ -6,15 +9,140 @@ use tokio_postgres::Client;
 use crate::config::ServerConfig;
 use crate::schema;
 use crate::schema::{ClientConnection, Server};
+use std::net::IpAddr;
+use std::str::FromStr;
 
 /// Setup the server's wireguard configuration.
-pub async fn setup_server(config: &ServerConfig, client: &Client) -> Result<(), Error> {
+pub async fn setup_server(config: &ServerConfig) -> Result<(), Error> {
     make_interface(config).await?;
     Ok(())
 }
 
 /// Update the wireguard server configuration.
 pub async fn update_server(config: &ServerConfig, client: &Client) -> Result<(), Error> {
+    ensure_conf(config, client).await?;
+    ensure_ip(config, client).await?;
+    Ok(())
+}
+
+/// Create the wireguard interface.
+async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
+    let child = Command::new("ip")
+        .args(&["link", "show", &config.device_name])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?
+        .await?;
+    // ip link show didn't fail => the device already exists
+    if child.success() {
+        return Ok(());
+    }
+    // TODO: remove `echo`
+    let child = Command::new("echo")
+        .arg("ip")
+        .args(&[
+            "link",
+            "add",
+            "dev",
+            &config.device_name,
+            "type",
+            "wireguard",
+        ])
+        .spawn()?
+        .await?;
+    if child.success() {
+        Ok(())
+    } else {
+        bail!(
+            "Failed to add the device: ip link add failed with {:?}",
+            child.code()
+        );
+    }
+}
+
+/// Make sure the interface has the correct ip addresses.
+async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> {
+    lazy_static! {
+        /// Search for the ip addresses of the network interface.
+        static ref RE: Regex = Regex::new(r"inet6? ([^\s]+)/(\d+)").unwrap();
+    }
+    let servers = schema::get_servers(&client).await?;
+    let server = servers
+        .iter()
+        .find(|s| s.name == config.name)
+        .expect("Server is not registered in the db");
+    let ips = Command::new("ip")
+        .args(&["addr", "show", &config.device_name])
+        .output()
+        .await?;
+    if !ips.status.success() {
+        bail!("Failed to get ips of interface: {:?}", ips);
+    }
+    let stdout = String::from_utf8_lossy(&ips.stdout);
+    let mut present = false; // whether the correct address is already present
+    for ip in RE.captures_iter(&stdout) {
+        let addr = IpAddr::from_str(&ip[1])?;
+        let len = u8::from_str(&ip[2])?;
+        // wrong ip or wrong network length
+        if addr != server.address || len != server.subnet_len {
+            remove_ip(config, addr, len).await?;
+        } else {
+            present = true;
+        }
+    }
+    // address is not already present, add it
+    if !present {
+        add_ip(config, server.address, server.subnet_len).await?;
+    }
+    Ok(())
+}
+
+/// Remove an ip address from the network device.
+async fn remove_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), Error> {
+    // TODO remove echo
+    let cmd = Command::new("echo")
+        .arg("ip")
+        .args(&["addr", "delete", "dev", &config.device_name])
+        .arg(format!("{}/{}", address.to_string(), len))
+        .spawn()?
+        .await?;
+    if cmd.success() {
+        Ok(())
+    } else {
+        bail!(
+            "Failed to remove {}/{} from {}: exit code {:?}",
+            address.to_string(),
+            len,
+            config.device_name,
+            cmd.code()
+        );
+    }
+}
+
+/// Add an ip address to the network device.
+async fn add_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), Error> {
+    // TODO remove echo
+    let cmd = Command::new("echo")
+        .arg("ip")
+        .args(&["addr", "add", "dev", &config.device_name])
+        .arg(format!("{}/{}", address.to_string(), len))
+        .spawn()?
+        .await?;
+    if cmd.success() {
+        Ok(())
+    } else {
+        bail!(
+            "Failed to add {}/{} to {}: exit code {:?}",
+            address.to_string(),
+            len,
+            config.device_name,
+            cmd.code()
+        );
+    }
+}
+
+/// Build the last version of the wireguard configuration and use it.
+async fn ensure_conf(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     let server_config = gen_server_config(config, client).await?;
     let tmpfile = NamedTempFile::new()?;
     tokio::fs::write(tmpfile.path().to_path_buf(), server_config.as_bytes()).await?;
@@ -30,32 +158,6 @@ pub async fn update_server(config: &ServerConfig, client: &Client) -> Result<(),
         Ok(())
     } else {
         bail!("Wireguard failed with {:?}", child.code());
-    }
-}
-
-/// Create the wireguard interface.
-async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
-    // TODO: remove `echo`
-    let child = Command::new("echo")
-        .arg("ip")
-        .args(&[
-            "link",
-            "add",
-            "dev",
-            &config.device_name,
-            "type",
-            "wireguard",
-        ])
-        .spawn()?
-        .await?;
-    // TODO check if already exists
-    if child.success() {
-        Ok(())
-    } else {
-        bail!(
-            "Failed to add the device: ip link add failed with {:?}",
-            child.code()
-        );
     }
 }
 

@@ -8,7 +8,6 @@ use crate::schema::{ClientConnection, Server};
 /// Update the hosts file of the DNS server.
 pub async fn update_dns(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     let conf = gen_dns_config(config, client).await?;
-    println!("conf:\n{}", conf);
     tokio::fs::write(config.dns_hosts_file.clone(), conf).await?;
     Ok(())
 }

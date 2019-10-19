@@ -37,9 +37,7 @@ async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
     if child.success() {
         return Ok(());
     }
-    // TODO: remove `echo`
-    let child = Command::new("echo")
-        .arg("ip")
+    let child = Command::new("ip")
         .args(&[
             "link",
             "add",
@@ -55,8 +53,7 @@ async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
     } else {
         bail!("Failed to add the device: exit code {:?}", child.code());
     }
-    let child = Command::new("echo")
-        .arg("ip")
+    let child = Command::new("ip")
         .args(&["link", "set", "up", "dev", &config.device_name])
         .spawn()?
         .await?;
@@ -122,9 +119,7 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
 
 /// Remove an ip address from the network device.
 async fn remove_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), Error> {
-    // TODO remove echo
-    let cmd = Command::new("echo")
-        .arg("ip")
+    let cmd = Command::new("ip")
         .args(&["addr", "delete", "dev", &config.device_name])
         .arg(format!("{}/{}", address.to_string(), len))
         .spawn()?
@@ -150,9 +145,7 @@ async fn remove_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<()
 
 /// Add an ip address to the network device.
 async fn add_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), Error> {
-    // TODO remove echo
-    let cmd = Command::new("echo")
-        .arg("ip")
+    let cmd = Command::new("ip")
         .args(&["addr", "add", "dev", &config.device_name])
         .arg(format!("{}/{}", address.to_string(), len))
         .spawn()?
@@ -182,9 +175,7 @@ async fn ensure_conf(config: &ServerConfig, client: &Client) -> Result<(), Error
     debug!("Wireguard configuration is:\n{}", server_config);
     let tmpfile = NamedTempFile::new()?;
     tokio::fs::write(tmpfile.path().to_path_buf(), server_config.as_bytes()).await?;
-    // TODO: remove `echo`
-    let child = Command::new("echo")
-        .arg("wg")
+    let child = Command::new("wg")
         .arg("setconf")
         .arg(&config.device_name)
         .arg(tmpfile.path())

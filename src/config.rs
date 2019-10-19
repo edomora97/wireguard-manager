@@ -1,5 +1,6 @@
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// The private configuration of a server.
 #[derive(Debug, Clone, Eq, Ord, PartialOrd, PartialEq, Deserialize, Serialize)]
@@ -14,6 +15,10 @@ pub struct ServerConfig {
     pub device_name: String,
     /// The connection string to the database.
     pub database_url: String,
+    /// Domain suffix to use for the DNS, without the leading dot.
+    pub base_domain: String,
+    /// Path to the file where to put the hosts entries. Use --hostsdir in dnsmasq.
+    pub dns_hosts_file: PathBuf,
 }
 
 /// Read the configuration file.

@@ -8,3 +8,7 @@ keepalive: 25
 device_name: wg-olinfo
 # The connection string to the database.
 database_url: "postgresql://postgres@localhost:5432/wireguard"
+# Domain suffix to use for the DNS, without the leading dot.
+base_domain: "net.olinfo.it"
+# Path to the file where to put the hosts entries. Use --hostsdir in dnsmasq.
+dns_hosts_file: "/tmp/wg-hosts.conf"

@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::str::FromStr;
 
 /// The schema of the database.
-const SCHEMA: &'static str = include_str!("schema.sql");
+const SCHEMA: &str = include_str!("schema.sql");
 
 /// A server inside the wireguard network.
 #[derive(Debug, Clone, Eq, Ord, PartialOrd, PartialEq)]
@@ -14,6 +14,8 @@ pub struct Server {
     pub subnet_addr: IpAddr,
     /// The length of the network managed by the server.
     pub subnet_len: u8,
+    /// The address of the server in its subnet.
+    pub address: IpAddr,
     /// The address with which the server can be reached from the outside.
     pub public_address: IpAddr,
     /// The port bound to wireguard.
@@ -51,7 +53,7 @@ pub async fn create_schema(client: &tokio_postgres::Client) -> Result<(), Error>
 pub async fn get_servers(client: &tokio_postgres::Client) -> Result<Vec<Server>, Error> {
     let stmt = client
         .prepare(
-            "SELECT name, host(subnet), masklen(subnet), host(public_address), public_port, public_key \
+            "SELECT name, host(subnet), masklen(subnet), host(address), host(public_address), public_port, public_key \
              FROM servers",
         )
         .await?;
@@ -62,9 +64,10 @@ pub async fn get_servers(client: &tokio_postgres::Client) -> Result<Vec<Server>,
             name: row.get(0),
             subnet_addr: IpAddr::from_str(row.get(1)).unwrap(),
             subnet_len: row.get::<_, i32>(2) as u8,
-            public_address: IpAddr::from_str(row.get(3)).unwrap(),
-            public_port: row.get::<_, i32>(4) as u16,
-            public_key: row.get(5),
+            address: IpAddr::from_str(row.get(3)).unwrap(),
+            public_address: IpAddr::from_str(row.get(4)).unwrap(),
+            public_port: row.get::<_, i32>(5) as u16,
+            public_key: row.get(6),
         })
         .collect())
 }

@@ -1,12 +1,14 @@
+use crate::config::ServerConfig;
 use failure::Error;
 use futures::channel::mpsc;
 use futures::{future, stream};
 use futures_util::stream::StreamExt;
 use futures_util::try_stream::TryStreamExt;
 use tokio::prelude::*;
-use tokio_postgres::{AsyncMessage, NoTls};
+use tokio_postgres::{AsyncMessage, Client, NoTls};
 
 mod config;
+mod dns;
 mod schema;
 mod wireguard;
 
@@ -31,6 +33,7 @@ async fn main() -> Result<(), Error> {
 
     // Initial server setup
     wireguard::setup_server(&config, &client).await?;
+    update_server(&config, &client).await;
 
     // Listen for server notifications
     rx.filter_map(|m| match m {
@@ -39,8 +42,18 @@ async fn main() -> Result<(), Error> {
     })
     .for_each(|m| {
         println!("notification: {:?}", m);
-        wireguard::setup_server(&config, &client).map(|res| res.unwrap())
+        update_server(&config, &client)
     })
     .await;
     Ok(())
+}
+
+/// Update the server, first updating wireguard and then the DNS.
+async fn update_server(config: &ServerConfig, client: &Client) {
+    wireguard::update_server(&config, &client)
+        .map(|res| res.unwrap())
+        .await;
+    dns::update_dns(&config, &client)
+        .map(|res| res.unwrap())
+        .await;
 }

@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use failure::{bail, Error};
 use tempfile::NamedTempFile;
 use tokio::net::process::Command;
@@ -9,17 +7,17 @@ use crate::config::ServerConfig;
 use crate::schema;
 use crate::schema::{ClientConnection, Server};
 
-/// Generate and update the currently running wireguard configuration.
+/// Setup the server's wireguard configuration.
 pub async fn setup_server(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     make_interface(config).await?;
-    update_server(config, client).await?;
     Ok(())
 }
 
+/// Update the wireguard server configuration.
 pub async fn update_server(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     let server_config = gen_server_config(config, client).await?;
-    let mut tmpfile = NamedTempFile::new()?;
-    tmpfile.write_all(server_config.as_bytes())?;
+    let tmpfile = NamedTempFile::new()?;
+    tokio::fs::write(tmpfile.path().to_path_buf(), server_config.as_bytes()).await?;
     // TODO: remove `echo`
     let child = Command::new("echo")
         .arg("wg")
@@ -35,6 +33,7 @@ pub async fn update_server(config: &ServerConfig, client: &Client) -> Result<(),
     }
 }
 
+/// Create the wireguard interface.
 async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
     // TODO: remove `echo`
     let child = Command::new("echo")
@@ -49,6 +48,7 @@ async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
         ])
         .spawn()?
         .await?;
+    // TODO check if already exists
     if child.success() {
         Ok(())
     } else {

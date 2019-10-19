@@ -1,17 +1,19 @@
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 
-#[macro_use]
-extern crate lazy_static;
-
-use crate::config::ServerConfig;
 use failure::Error;
 use futures::channel::mpsc;
-use futures::{future, stream};
+use futures::prelude::*;
 use futures_util::stream::StreamExt;
+use futures_util::try_future::TryFutureExt;
 use futures_util::try_stream::TryStreamExt;
+use signal_hook::iterator::Signals;
 use tokio::prelude::*;
 use tokio_postgres::{AsyncMessage, Client, NoTls};
+
+use crate::config::ServerConfig;
 
 mod config;
 mod dns;
@@ -23,6 +25,36 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
 
     let config = config::read()?;
+
+    let signals = Signals::new(&[
+        signal_hook::SIGUSR1,
+        signal_hook::SIGTERM,
+        signal_hook::SIGINT,
+    ])?;
+    let config2 = config.clone();
+    std::thread::spawn(move || {
+        for signal in &signals {
+            match signal {
+                signal_hook::SIGUSR1 => {
+                    // // This does not compile and I have no idea why
+                    // let config = config2.clone();
+                    // tokio::spawn(async move {
+                    //     let (client, _) = tokio_postgres::connect(&config.database_url, NoTls)
+                    //         .await
+                    //         .unwrap();
+                    //     update_server(&config, &client).await;
+                    // });
+                }
+                signal_hook::SIGTERM | signal_hook::SIGINT => {
+                    if let Err(e) = wireguard::unsetup_server(&config2) {
+                        std::process::exit(1);
+                    }
+                    std::process::exit(0);
+                }
+                _ => unreachable!(),
+            }
+        }
+    });
 
     // Connect to the database.
     debug!("Connecting to the database");

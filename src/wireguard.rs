@@ -1,7 +1,7 @@
 use std::process::Stdio;
 
 use failure::{bail, Error};
-use regex::Regex;
+use regex::{Captures, Regex};
 use tempfile::NamedTempFile;
 use tokio::net::process::Command;
 use tokio_postgres::Client;
@@ -12,10 +12,33 @@ use crate::schema::{ClientConnection, Server};
 use std::net::IpAddr;
 use std::str::FromStr;
 
+lazy_static! {
+    /// Search for the ip addresses of the network interface.
+    static ref RE: Regex = Regex::new(r"inet6? ([^\s]+)/(\d+)").unwrap();
+}
+
 /// Setup the server's wireguard configuration.
 pub async fn setup_server(config: &ServerConfig) -> Result<(), Error> {
     make_interface(config).await?;
     Ok(())
+}
+
+/// Tear down the server synchronously.
+pub fn unsetup_server(config: &ServerConfig) -> Result<(), Error> {
+    let child = std::process::Command::new("ip")
+        .args(&["link", "delete", &config.device_name])
+        .spawn()?
+        .wait()?;
+    if child.success() {
+        info!("Removed device {}", config.device_name);
+        Ok(())
+    } else {
+        bail!(
+            "Failed to delete the device {}: exit code {:?}",
+            config.device_name,
+            child.code()
+        );
+    }
 }
 
 /// Update the wireguard server configuration.
@@ -70,10 +93,6 @@ async fn make_interface(config: &ServerConfig) -> Result<(), Error> {
 
 /// Make sure the interface has the correct ip addresses.
 async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> {
-    lazy_static! {
-        /// Search for the ip addresses of the network interface.
-        static ref RE: Regex = Regex::new(r"inet6? ([^\s]+)/(\d+)").unwrap();
-    }
     let servers = schema::get_servers(&client).await?;
     let server = servers
         .iter()

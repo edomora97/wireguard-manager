@@ -111,7 +111,7 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
         let addr = IpAddr::from_str(&ip[1])?;
         let len = u8::from_str(&ip[2])?;
         // wrong ip or wrong network length
-        if addr != server.address || len != server.subnet_len {
+        if addr != server.address || len != config.netmask_len {
             warn!(
                 "Wrong address {}/{} found in {}, removing it",
                 addr.to_string(),
@@ -128,10 +128,10 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
         info!(
             "Adding address {}/{} to device {}",
             server.address.to_string(),
-            server.subnet_len,
+            config.netmask_len,
             config.device_name
         );
-        add_ip(config, server.address, server.subnet_len).await?;
+        add_ip(config, server.address, config.netmask_len).await?;
     }
     Ok(())
 }

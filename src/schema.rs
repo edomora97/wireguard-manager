@@ -1,3 +1,6 @@
+// This mod is used partially in many places
+#![allow(dead_code)]
+
 use failure::Error;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -40,6 +43,15 @@ pub struct ClientConnection {
     pub server: String,
     /// The client.
     pub client: Client,
+    /// The address of the client, connecting to that server.
+    pub address: IpAddr,
+}
+
+/// The details of the connection to a server.
+#[derive(Debug, Clone, Eq, Ord, PartialOrd, PartialEq)]
+pub struct ServerConnection {
+    /// The name of the server.
+    pub server: Server,
     /// The address of the client, connecting to that server.
     pub address: IpAddr,
 }
@@ -95,6 +107,35 @@ pub async fn get_clients(
                 public_key: row.get(2),
             },
             address: IpAddr::from_str(row.get(3)).unwrap(),
+        })
+        .collect())
+}
+
+pub async fn get_client_connections(
+    client: &tokio_postgres::Client,
+    name: &str,
+) -> Result<Vec<ServerConnection>, Error> {
+    let stmt = client
+        .prepare(
+            "SELECT name, host(subnet), masklen(subnet), host(servers.address), host(public_address), public_port, public_key, host(connections.address) \
+             FROM servers JOIN connections ON servers.name = connections.server \
+             WHERE connections.client = $1",
+        )
+        .await?;
+    let rows = client.query(&stmt, &[&name.to_string()]).await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| ServerConnection {
+            server: Server {
+                name: row.get(0),
+                subnet_addr: IpAddr::from_str(row.get(1)).unwrap(),
+                subnet_len: row.get::<_, i32>(2) as u8,
+                address: IpAddr::from_str(row.get(3)).unwrap(),
+                public_address: IpAddr::from_str(row.get(4)).unwrap(),
+                public_port: row.get::<_, i32>(5) as u16,
+                public_key: row.get(6),
+            },
+            address: IpAddr::from_str(row.get(7)).unwrap(),
         })
         .collect())
 }

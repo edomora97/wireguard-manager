@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 CREATE TABLE IF NOT EXISTS connections (
   server TEXT REFERENCES servers(name),
-  client TEXT REFERENCES clients(name),
+  client TEXT UNIQUE REFERENCES clients(name),
   address inet NOT NULL UNIQUE,
   PRIMARY KEY (server, client)
 );

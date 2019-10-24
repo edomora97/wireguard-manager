@@ -19,6 +19,8 @@ pub struct ServerConfig {
     pub base_domain: String,
     /// Path to the file where to put the hosts entries. Use --hostsdir in dnsmasq.
     pub dns_hosts_file: PathBuf,
+    /// The entire private network.
+    pub network: String,
     /// Length of the subnet of the entire private network.
     pub netmask_len: u8,
 }

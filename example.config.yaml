@@ -12,5 +12,7 @@ database_url: "postgresql://postgres@localhost:5432/wireguard"
 base_domain: "net.olinfo.it"
 # Path to the file where to put the hosts entries. Use --hostsdir in dnsmasq.
 dns_hosts_file: "/tmp/wg-hosts.conf"
+# The entire private network.
+network: "fd42::"
 # Length of the subnet of the entire private network.
 netmask_len: 16

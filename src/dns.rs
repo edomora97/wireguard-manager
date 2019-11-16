@@ -16,7 +16,7 @@ pub async fn update_dns(config: &ServerConfig, client: &Client) -> Result<(), Er
 /// Generate the dns configuration.
 async fn gen_dns_config(config: &ServerConfig, client: &Client) -> Result<String, Error> {
     let servers = schema::get_servers(client).await?;
-    let clients = schema::get_clients(client, &config.name).await?;
+    let clients = schema::get_clients(client, None).await?;
     let mut conf = gen_server_entries(config, &servers);
     conf += &gen_clients_entries(config, &clients);
     Ok(conf)
@@ -43,10 +43,9 @@ fn gen_clients_entries(config: &ServerConfig, clients: &[ClientConnection]) -> S
     res += "\n# Clients\n";
     for client in clients {
         res += &format!(
-            "{:<20} {}.{}.{}\n",
+            "{:<20} {}.{}\n",
             client.address.to_string(),
             client.client.name,
-            client.server,
             config.base_domain
         );
     }

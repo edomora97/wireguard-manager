@@ -215,7 +215,7 @@ async fn gen_server_config(config: &ServerConfig, client: &Client) -> Result<Str
         .iter()
         .find(|s| s.name == config.name)
         .expect("Server is not registered in the db");
-    let clients = schema::get_clients(client, &config.name).await?;
+    let clients = schema::get_clients(client, Some(&config.name)).await?;
     let mut server_conf = gen_server_interface(config, server);
     server_conf += &gen_server_to_server_peers(config, &servers);
     server_conf += &gen_server_to_client_peers(&clients);

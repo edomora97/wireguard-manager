@@ -5,8 +5,8 @@ use failure::Error;
 use tokio::prelude::*;
 use tokio_postgres::NoTls;
 
-mod config;
-mod schema;
+pub mod config;
+pub mod schema;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

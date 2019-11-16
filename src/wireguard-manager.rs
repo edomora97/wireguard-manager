@@ -14,10 +14,10 @@ use tokio_postgres::{AsyncMessage, Client, NoTls};
 
 use crate::config::ServerConfig;
 
-mod config;
-mod dns;
-mod schema;
-mod wireguard;
+pub mod config;
+pub mod dns;
+pub mod schema;
+pub mod wireguard;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

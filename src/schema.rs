@@ -4,6 +4,7 @@
 use failure::Error;
 use std::net::IpAddr;
 use std::str::FromStr;
+use tokio_postgres::types::ToSql;
 
 /// The schema of the database.
 const SCHEMA: &str = include_str!("schema.sql");
@@ -87,17 +88,23 @@ pub async fn get_servers(client: &tokio_postgres::Client) -> Result<Vec<Server>,
 /// Retrieve a list of all the clients allowed to connect to the specified server.
 pub async fn get_clients(
     client: &tokio_postgres::Client,
-    server: &str,
+    server: Option<&str>,
 ) -> Result<Vec<ClientConnection>, Error> {
-    let stmt = client
-        .prepare(
-            "SELECT server, name, public_key, host(address) \
-             FROM connections \
-             JOIN clients ON client = name \
-             WHERE server = $1",
-        )
-        .await?;
-    let rows = client.query(&stmt, &[&server.to_string()]).await?;
+    let mut query = "SELECT server, name, public_key, host(address) \
+                     FROM connections \
+                     JOIN clients ON client = name"
+        .to_string();
+    if server.is_some() {
+        query += " WHERE server = $1";
+    }
+    let server_name = server.unwrap_or_default().to_string();
+    let params: Vec<&(dyn ToSql + Sync)> = if server.is_some() {
+        vec![&server_name]
+    } else {
+        vec![]
+    };
+    let stmt = client.prepare(&query).await?;
+    let rows = client.query(&stmt, params.as_slice()).await?;
     Ok(rows
         .into_iter()
         .map(|row| ClientConnection {

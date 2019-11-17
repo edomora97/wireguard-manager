@@ -270,3 +270,45 @@ fn gen_server_to_client_peers(clients: &[ClientConnection]) -> String {
     }
     conf
 }
+
+pub async fn gen_client_config(
+    config: &ServerConfig,
+    client: &Client,
+    name: String,
+    private_key: Option<String>,
+) -> Result<String, Error> {
+    let connections = schema::get_client_connections(&client, &name).await?;
+    if connections.is_empty() {
+        bail!("The user doesn't have a connection to any server");
+    }
+    let private_key = private_key.unwrap_or_else(|| "<insert your private key>".to_string());
+    let addresses: Vec<_> = connections
+        .iter()
+        .map(|c| format!("{}/{}", c.address.to_string(), config.netmask_len))
+        .collect();
+    let addresses = addresses.join(",");
+
+    let mut conf = String::new();
+    conf += "[Interface]\n";
+    conf += &format!("PrivateKey = {}\n", private_key);
+    conf += &format!("Address = {}\n", addresses);
+
+    // this is a list, even tho there could be at most one entry
+    for connection in connections {
+        let server = connection.server;
+        conf += "\n";
+        conf += "[Peer]\n";
+        conf += &format!("PublicKey = {}\n", server.public_key);
+        conf += &format!("AllowedIPs = {}/{}\n", config.network, config.netmask_len);
+        conf += &format!(
+            "Endpoint = {}:{}\n",
+            server.public_address.to_string(),
+            server.public_port
+        );
+        if let Some(keepalive) = config.keepalive {
+            conf += &format!("PersistentKeepalive = {}\n", keepalive);
+        }
+    }
+
+    Ok(conf)
+}

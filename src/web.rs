@@ -1,4 +1,5 @@
 use crate::config::ServerConfig;
+use crate::wireguard::gen_client_config;
 use failure::Error;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::Serialize;
@@ -69,6 +70,24 @@ pub async fn handle_request<T>(
                 .header("Content-Type", "application/json")
                 .body(Body::from(serde_json::to_string_pretty(&status)?))
                 .unwrap())
+        }
+        url if url.starts_with("/conf/") => {
+            let name = &url[6..];
+            let conf = gen_client_config(config, client, name.to_owned(), None).await;
+            match conf {
+                Ok(conf) => {
+                    Ok(Response::builder()
+                        .status(200)
+                        .body(Body::from(conf))
+                        .unwrap())
+                }
+                Err(err) => {
+                    Ok(Response::builder()
+                        .status(404)
+                        .body(Body::from(err.to_string()))
+                        .unwrap())
+                }
+            }
         }
         _ => {
             let path = if req.uri().path() == "/" {

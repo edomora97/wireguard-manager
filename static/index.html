@@ -32,6 +32,13 @@
         .server {
             margin-bottom: 20px;
         }
+
+        #conf {
+            margin: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #eee;
+        }
     </style>
     <title>Wireguard Network</title>
 </head>
@@ -39,6 +46,16 @@
 
 <h1>Wireguard Network</h1>
 <div id="container"></div>
+<h2>Generate configuration</h2>
+<form id="gen-conf" action="#" class="col-lg-6">
+    <div class="form-group row">
+        <div class="col-sm-9">
+            <input type="text" class="form-control" id="username" placeholder="Username" required>
+        </div>
+        <button type="submit" class="btn btn-primary col-sm-3">Generate</button>
+    </div>
+</form>
+<pre id="conf" style="display: none"></pre>
 
 <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
@@ -95,6 +112,18 @@
             }
         });
         container.append(servers);
+
+        $("#gen-conf").on("submit", e => {
+            e.preventDefault();
+            const username = $("#username").val();
+            $.get("/conf/" + username)
+                .then(conf => {
+                    $("#conf").text(conf).show();
+                })
+                .catch(err => {
+                    $("#conf").text(err.responseText || "Error").show();
+                })
+        });
     });
 </script>
 </body>

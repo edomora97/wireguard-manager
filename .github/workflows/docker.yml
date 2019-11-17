@@ -1,0 +1,32 @@
+name: Docker
+
+on: push
+
+jobs:
+  build:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+      - name: Build release binary
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --target x86_64-unknown-linux-musl --release
+      - name: Build docker container
+        run: |
+          cd docker && tar -czh . | docker build -t edomora97/wireguard-manager -
+      - name: Publish to Registry
+        run: |
+          docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
+          newtag=$(date +%F.%H-%M-%S).$(git log --pretty=format:'%h' -n 1)
+          docker tag edomora97/wireguard-manager:latest edomora97/wireguard-manager:$newtag
+          docker push edomora97/wireguard-manager:latest
+          docker push edomora97/wireguard-manager:$newtag

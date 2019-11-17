@@ -23,11 +23,19 @@ pub struct ServerConfig {
     pub network: String,
     /// Length of the subnet of the entire private network.
     pub netmask_len: u8,
+    /// Which address to listen to for the web interface
+    pub web_listen_address: String,
+    /// Which port to listen to for the web interface
+    pub web_listen_port: u16,
+    /// Path to where the static web content is stored
+    pub web_static_dir: PathBuf,
 }
 
 /// Read the configuration file.
 pub fn read() -> Result<ServerConfig, Error> {
     let file = std::fs::File::open("config.yaml")
         .map_err(|e| format_err!("Cannot read configuration file: {}", e))?;
-    serde_yaml::from_reader(file).map_err(|e| e.into())
+    let mut config: ServerConfig = serde_yaml::from_reader(file)?;
+    config.web_static_dir = config.web_static_dir.canonicalize()?;
+    Ok(config)
 }

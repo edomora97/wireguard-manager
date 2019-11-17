@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet"
+          href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+          crossorigin="anonymous">
+
+    <style>
+        .server-name {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .client-name {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .server > span {
+            display: block;
+        }
+
+        .client > span {
+            display: block;
+        }
+
+        .server {
+            margin-bottom: 20px;
+        }
+    </style>
+    <title>Wireguard Network</title>
+</head>
+<body class="container">
+
+<h1>Wireguard Network</h1>
+<div id="container"></div>
+
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script>
+    $(() => {
+        const container = $("#container");
+        const servers = $("<ul>");
+        $.get("/data").then(data => {
+            for (const server of data.servers) {
+                const server_li = $("<li>").addClass("server");
+                const server_domain_name = server.name + "." + data.base_domain;
+                server_li.append(
+                    $("<span>").addClass("server-name")
+                        .text(server.name + " ")
+                        .append(
+                            $("<small>").append($("<a>")
+                                .attr("href", "http://" + server_domain_name)
+                                .text(server_domain_name))));
+                server_li.append(
+                    $("<span>").addClass("server-subnet")
+                        .text("Managing ")
+                        .append($("<code>").text(server.subnet + "/" + server.subnet_len)));
+                server_li.append(
+                    $("<span>").addClass("server-address")
+                        .text("With address ")
+                        .append($("<code>").text(server.address)));
+                server_li.append(
+                    $("<span>").addClass("server-endpoint")
+                        .text("At ")
+                        .append($("<code>").text(server.endpoint))
+                        .append(" port ")
+                        .append($("<code>").text(server.endpoint_port)));
+
+                const clients = [];
+                for (const client of data.clients) {
+                    if (client.server !== server.name) continue;
+                    const client_li = $("<li>").addClass("client");
+                    const client_domain_name = client.name + "." + data.base_domain;
+                    client_li.append(
+                        $("<span>").addClass("client-name")
+                            .text(client.name + " ")
+                            .append(
+                                $("<small>").append($("<a>")
+                                    .attr("href", "http://" + client_domain_name)
+                                    .text(client_domain_name))));
+                    client_li.append(
+                        $("<span>").addClass("client-address")
+                            .text("With address ")
+                            .append($("<code>").text(client.address)));
+                    clients.push(client_li);
+                }
+                server_li.append($("<ul>").append(clients));
+                servers.append(server_li);
+            }
+        });
+        container.append(servers);
+    });
+</script>
+</body>
+</html>

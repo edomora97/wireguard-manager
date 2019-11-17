@@ -16,3 +16,9 @@ dns_hosts_file: "/tmp/wg-hosts.conf"
 network: "fd42::"
 # Length of the subnet of the entire private network.
 netmask_len: 16
+# Which address to listen to for the web interface
+web_listen_address: "::"
+# Which port to listen to for the web interface
+web_listen_port: 3000
+# Path to where the static web content is stored
+web_static_dir: "static"

@@ -75,18 +75,14 @@ pub async fn handle_request<T>(
             let name = &url[6..];
             let conf = gen_client_config(config, client, name.to_owned(), None).await;
             match conf {
-                Ok(conf) => {
-                    Ok(Response::builder()
-                        .status(200)
-                        .body(Body::from(conf))
-                        .unwrap())
-                }
-                Err(err) => {
-                    Ok(Response::builder()
-                        .status(404)
-                        .body(Body::from(err.to_string()))
-                        .unwrap())
-                }
+                Ok(conf) => Ok(Response::builder()
+                    .status(200)
+                    .body(Body::from(conf))
+                    .unwrap()),
+                Err(err) => Ok(Response::builder()
+                    .status(404)
+                    .body(Body::from(err.to_string()))
+                    .unwrap()),
             }
         }
         _ => {
@@ -103,7 +99,7 @@ pub async fn handle_request<T>(
             if path.starts_with(&config.web_static_dir) {
                 if let Ok(mut file) = File::open(path).await {
                     let mut buf = Vec::new();
-                    if let Ok(_) = file.read_to_end(&mut buf).await {
+                    if file.read_to_end(&mut buf).await.is_ok() {
                         return Ok(Response::new(buf.into()));
                     }
                 }

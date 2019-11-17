@@ -4,12 +4,23 @@ use tokio_postgres::Client;
 use crate::config::ServerConfig;
 use crate::schema;
 use crate::schema::{ClientConnection, Server};
+use tokio::net::process::Command;
 
 /// Update the hosts file of the DNS server.
 pub async fn update_dns(config: &ServerConfig, client: &Client) -> Result<(), Error> {
     let conf = gen_dns_config(config, client).await?;
     debug!("DNS configuration:\n{}", conf);
     tokio::fs::write(config.dns_hosts_file.clone(), conf).await?;
+    let child = Command::new("pkill")
+        .arg("-SIGHUP")
+        .arg("dnsmasq")
+        .spawn()?
+        .await?;
+    if child.success() {
+        info!("dnsmasq reloaded successfully");
+    } else {
+        warn!("Failed to reload dnsmasq: {:?}", child.code());
+    }
     Ok(())
 }
 

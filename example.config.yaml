@@ -5,20 +5,20 @@ private_key: "private-key-here"
 # An optional keep-alive to use for every peer.
 keepalive: 25
 # The name of the network device to create.
-device_name: wg-olinfo
+device_name: wg0
 # The connection string to the database.
-database_url: "postgresql://postgres@localhost:5432/wireguard"
+database_url: "postgresql://postgres@db.example.com:5432/wireguard"
 # Domain suffix to use for the DNS, without the leading dot.
-base_domain: "net.olinfo.it"
+base_domain: "vpn.example.com"
 # Path to the file where to put the hosts entries. Use --hostsdir in dnsmasq.
-dns_hosts_file: "/tmp/wg-hosts.conf"
+dns_hosts_file: "/var/run/wg-hosts.conf"
 # The entire private network.
-network: "fd42::"
+network: "fd12::"
 # Length of the subnet of the entire private network.
-netmask_len: 16
+netmask_len: 48
 # Which address to listen to for the web interface
 web_listen_address: "::"
 # Which port to listen to for the web interface
-web_listen_port: 3000
+web_listen_port: 80
 # Path to where the static web content is stored
 web_static_dir: "static"

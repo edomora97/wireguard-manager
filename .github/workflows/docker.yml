@@ -1,6 +1,9 @@
 name: Docker
 
-on: push
+on:
+  push:
+    tags:
+      - "v*"
 
 jobs:
   build:
@@ -26,7 +29,7 @@ jobs:
       - name: Publish to Registry
         run: |
           docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
-          newtag=$(date +%F.%H-%M-%S).$(git log --pretty=format:'%h' -n 1)
+          newtag=$(git describe --tags)
           docker tag edomora97/wireguard-manager:latest edomora97/wireguard-manager:$newtag
           docker push edomora97/wireguard-manager:latest
           docker push edomora97/wireguard-manager:$newtag

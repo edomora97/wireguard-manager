@@ -107,7 +107,10 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
     }
     let stdout = String::from_utf8_lossy(&ips.stdout);
     let mut present = false; // whether the correct address is already present
-    for ip in RE.captures_iter(&stdout) {
+                             // need to collect the results because the regex state cannot be sent between thread, and this
+                             // doesn't play well with the await inside the loop.
+    let ips: Vec<_> = RE.captures_iter(&stdout).collect();
+    for ip in ips.into_iter() {
         let addr = IpAddr::from_str(&ip[1])?;
         let len = u8::from_str(&ip[2])?;
         // wrong ip or wrong network length
@@ -138,9 +141,9 @@ async fn ensure_ip(config: &ServerConfig, client: &Client) -> Result<(), Error> 
 
 /// Remove an ip address from the network device.
 async fn remove_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), Error> {
+    let addr = format!("{}/{}", address.to_string(), len);
     let cmd = Command::new("ip")
-        .args(&["addr", "delete", "dev", &config.device_name])
-        .arg(format!("{}/{}", address.to_string(), len))
+        .args(&["addr", "delete", "dev", &config.device_name, &addr])
         .spawn()?
         .await?;
     if cmd.success() {
@@ -164,9 +167,9 @@ async fn remove_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<()
 
 /// Add an ip address to the network device.
 async fn add_ip(config: &ServerConfig, address: IpAddr, len: u8) -> Result<(), Error> {
+    let addr = format!("{}/{}", address.to_string(), len);
     let cmd = Command::new("ip")
-        .args(&["addr", "add", "dev", &config.device_name])
-        .arg(format!("{}/{}", address.to_string(), len))
+        .args(&["addr", "add", "dev", &config.device_name, &addr])
         .spawn()?
         .await?;
     if cmd.success() {

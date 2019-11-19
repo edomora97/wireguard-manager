@@ -6,17 +6,19 @@ extern crate log;
 use failure::Error;
 use futures::channel::mpsc;
 use futures::{future, stream};
-use signal_hook::iterator::Signals;
 use tokio::prelude::*;
+use tokio_net::signal;
 use tokio_postgres::{AsyncMessage, Client, NoTls};
 
 use crate::config::ServerConfig;
+use futures::future::Ready;
 use futures_util::TryStreamExt;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio_net::signal::unix::SignalKind;
 
 pub mod config;
 pub mod dns;
@@ -30,36 +32,15 @@ async fn main() -> Result<(), Error> {
 
     let config = config::read()?;
 
-    let signals = Signals::new(&[
-        signal_hook::SIGUSR1,
-        signal_hook::SIGTERM,
-        signal_hook::SIGINT,
-    ])?;
+    // Exit tearing down on Control-C.
     let config2 = config.clone();
-    std::thread::spawn(move || {
-        for signal in &signals {
-            match signal {
-                signal_hook::SIGUSR1 => {
-                    // // This does not compile and I have no idea why
-                    // let config = config2.clone();
-                    // tokio::spawn(async move {
-                    //     let (client, _) = tokio_postgres::connect(&config.database_url, NoTls)
-                    //         .await
-                    //         .unwrap();
-                    //     update_server(&config, &client).await;
-                    // });
-                }
-                signal_hook::SIGTERM | signal_hook::SIGINT => {
-                    if let Err(e) = wireguard::unsetup_server(&config2) {
-                        error!("Error tearing down the server: {:?}", e);
-                        std::process::exit(1);
-                    }
-                    std::process::exit(0);
-                }
-                _ => unreachable!(),
-            }
+    tokio::spawn(signal::ctrl_c()?.for_each(move |_| -> Ready<()> {
+        if let Err(e) = wireguard::unsetup_server(&config2) {
+            error!("Error tearing down the server: {:?}", e);
+            std::process::exit(1);
         }
-    });
+        std::process::exit(0);
+    }));
 
     // Connect to the database.
     debug!("Connecting to the database");
@@ -74,6 +55,19 @@ async fn main() -> Result<(), Error> {
 
     let client_arc = Arc::new(client);
     let client = client_arc.as_ref();
+
+    // Reload the configuration from the DB on SIGUSR1.
+    let client_arc2 = client_arc.clone();
+    let config3 = config.clone();
+    tokio::spawn(
+        signal::unix::signal(SignalKind::user_defined1())?.for_each(move |_| {
+            info!("Reloading due to SIGUSR1");
+            let config = config3.clone();
+            let client = client_arc2.clone();
+            async move { update_server(&config, client.as_ref()).await }
+        }),
+    );
+
     // Make sure the schema is present
     schema::create_schema(&client).await?;
     debug!("Schema created");

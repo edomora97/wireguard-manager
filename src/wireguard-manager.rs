@@ -59,10 +59,6 @@ async fn main() -> Result<(), Error> {
         }),
     );
 
-    // Make sure the schema is present
-    schema::create_schema(&client).await?;
-    debug!("Schema created");
-
     // Start listening for server notifications
     client.batch_execute("LISTEN update_server").await?;
 

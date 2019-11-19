@@ -32,3 +32,7 @@ path = "src/wireguard-manager.rs"
 [[bin]]
 name = "gen-client"
 path = "src/gen-client.rs"
+
+[[bin]]
+name = "create-schema"
+path = "src/create-schema.rs"

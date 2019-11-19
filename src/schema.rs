@@ -1,8 +1,13 @@
 use failure::Error;
+use futures::channel::mpsc;
+use futures::stream;
+use futures::FutureExt;
+use futures_util::StreamExt;
+use futures_util::TryStreamExt;
 use std::net::IpAddr;
 use std::str::FromStr;
 use tokio_postgres::types::ToSql;
-use tokio_postgres::Row;
+use tokio_postgres::{AsyncMessage, NoTls, Row};
 
 /// The schema of the database.
 const SCHEMA: &str = include_str!("schema.sql");
@@ -71,6 +76,37 @@ pub struct ServerConnection {
     pub server: Server,
     /// The address of the client, connecting to that server.
     pub address: IpAddr,
+}
+
+/// Connect to the database, spawning the background task for managing the connection.
+pub async fn connect<S: AsRef<str>>(url: S) -> Result<tokio_postgres::Client, Error> {
+    let (client, connection) = tokio_postgres::connect(url.as_ref(), NoTls).await?;
+    let connection = connection.map(|r| {
+        if let Err(e) = r {
+            error!("connection error: {}", e);
+        }
+    });
+    tokio::spawn(connection);
+    Ok(client)
+}
+
+/// Connect to the database, spawning the background task for managing the connection and returning
+/// a channel with all the notifications from the database.
+pub async fn connect_with_notifications<S: AsRef<str>>(
+    url: S,
+) -> Result<
+    (
+        tokio_postgres::Client,
+        mpsc::UnboundedReceiver<AsyncMessage>,
+    ),
+    Error,
+> {
+    let (client, mut connection) = tokio_postgres::connect(&url.as_ref(), NoTls).await?;
+    let (tx, rx) = mpsc::unbounded();
+    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
+    let connection = stream.forward(tx).map(|r| r.unwrap());
+    tokio::spawn(connection);
+    Ok((client, rx))
 }
 
 /// Makes sure the schema is present. If the schema is outdated only bad things can happen.

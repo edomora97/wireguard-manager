@@ -3,22 +3,19 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
-use failure::Error;
-use futures::channel::mpsc;
-use futures::{future, stream};
-use tokio::prelude::*;
-use tokio_net::signal;
-use tokio_postgres::{AsyncMessage, Client, NoTls};
-
 use crate::config::ServerConfig;
+use failure::Error;
+use futures::future;
 use futures::future::Ready;
-use futures_util::TryStreamExt;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::prelude::*;
+use tokio_net::signal;
 use tokio_net::signal::unix::SignalKind;
+use tokio_postgres::{AsyncMessage, Client};
 
 pub mod config;
 pub mod dns;
@@ -44,14 +41,8 @@ async fn main() -> Result<(), Error> {
 
     // Connect to the database.
     debug!("Connecting to the database");
-    let (client, mut connection) = tokio_postgres::connect(&config.database_url, NoTls).await?;
+    let (client, rx) = schema::connect_with_notifications(&config.database_url).await?;
     debug!("Connected to the database");
-
-    // Forward the notifications to the channel
-    let (tx, rx) = mpsc::unbounded();
-    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
-    let connection = stream.forward(tx).map(|r| r.unwrap());
-    tokio::spawn(connection);
 
     let client_arc = Arc::new(client);
     let client = client_arc.as_ref();

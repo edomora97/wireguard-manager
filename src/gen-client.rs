@@ -11,8 +11,6 @@ extern crate lazy_static;
 extern crate log;
 
 use failure::Error;
-use tokio::prelude::*;
-use tokio_postgres::NoTls;
 
 pub mod config;
 pub mod schema;
@@ -32,13 +30,7 @@ async fn main() -> Result<(), Error> {
 
     // Connect to the database.
     debug!("Connecting to the database");
-    let (client, connection) = tokio_postgres::connect(&config.database_url, NoTls).await?;
-    let connection = connection.map(|r| {
-        if let Err(e) = r {
-            eprintln!("connection error: {}", e);
-        }
-    });
-    tokio::spawn(connection);
+    let client = schema::connect(&config.database_url).await?;
     debug!("Connected to the database");
 
     let username = args[1].to_string();

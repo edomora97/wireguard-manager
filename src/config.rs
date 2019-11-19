@@ -36,6 +36,7 @@ pub fn read() -> Result<ServerConfig, Error> {
     let file = std::fs::File::open("config.yaml")
         .map_err(|e| format_err!("Cannot read configuration file: {}", e))?;
     let mut config: ServerConfig = serde_yaml::from_reader(file)?;
+    // Make sure the directory is absolute.
     config.web_static_dir = config.web_static_dir.canonicalize()?;
     Ok(config)
 }

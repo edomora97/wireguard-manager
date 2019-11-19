@@ -113,6 +113,7 @@ async fn update_server(config: &ServerConfig, client: &Client) {
         .await;
 }
 
+/// Spawn the web server and listen to the port specified in the configuration file.
 fn spawn_web_server(config: &ServerConfig, client_arc: Arc<Client>) -> Result<(), Error> {
     let addr = SocketAddr::new(
         IpAddr::from_str(&config.web_listen_address)?,

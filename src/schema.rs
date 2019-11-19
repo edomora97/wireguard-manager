@@ -1,10 +1,8 @@
-// This mod is used partially in many places
-#![allow(dead_code)]
-
 use failure::Error;
 use std::net::IpAddr;
 use std::str::FromStr;
 use tokio_postgres::types::ToSql;
+use tokio_postgres::Row;
 
 /// The schema of the database.
 const SCHEMA: &str = include_str!("schema.sql");
@@ -26,6 +24,24 @@ pub struct Server {
     pub public_port: u16,
     /// The public key of the server.
     pub public_key: String,
+}
+
+impl Server {
+    /// Build a `Server` from a row returned by an SQL query of the form:
+    ///     SELECT name, host(subnet), masklen(subnet), host(servers.address),
+    ///            host(public_address), public_port, public_key
+    ///     FROM servers
+    fn from_sql(row: &Row, start_index: usize) -> Server {
+        Server {
+            name: row.get(start_index),
+            subnet_addr: IpAddr::from_str(row.get(start_index + 1)).unwrap(),
+            subnet_len: row.get::<_, i32>(start_index + 2) as u8,
+            address: IpAddr::from_str(row.get(start_index + 3)).unwrap(),
+            public_address: IpAddr::from_str(row.get(start_index + 4)).unwrap(),
+            public_port: row.get::<_, i32>(start_index + 5) as u16,
+            public_key: row.get(start_index + 6),
+        }
+    }
 }
 
 /// A client inside the wireguard network.
@@ -73,22 +89,15 @@ pub async fn get_servers(client: &tokio_postgres::Client) -> Result<Vec<Server>,
     let rows = client.query(&stmt, &[]).await?;
     Ok(rows
         .into_iter()
-        .map(|row| Server {
-            name: row.get(0),
-            subnet_addr: IpAddr::from_str(row.get(1)).unwrap(),
-            subnet_len: row.get::<_, i32>(2) as u8,
-            address: IpAddr::from_str(row.get(3)).unwrap(),
-            public_address: IpAddr::from_str(row.get(4)).unwrap(),
-            public_port: row.get::<_, i32>(5) as u16,
-            public_key: row.get(6),
-        })
+        .map(|row| Server::from_sql(&row, 0))
         .collect())
 }
 
 /// Retrieve a list of all the clients allowed to connect to the specified server.
-pub async fn get_clients(
+/// If the specified server is `None`, all the clients are returned.
+pub async fn get_clients<S: AsRef<str>>(
     client: &tokio_postgres::Client,
-    server: Option<&str>,
+    server: Option<S>,
 ) -> Result<Vec<ClientConnection>, Error> {
     let mut query = "SELECT server, name, public_key, host(address) \
                      FROM connections \
@@ -97,7 +106,13 @@ pub async fn get_clients(
     if server.is_some() {
         query += " WHERE server = $1";
     }
-    let server_name = server.unwrap_or_default().to_string();
+    // build the server name, the optional parameter of the query. Cannot build it conditionally
+    // because a ref to it is needed when passing the parameter to `client.query`, which has a very
+    // picky type.
+    let server_name = server
+        .as_ref()
+        .map(|s| s.as_ref().to_string())
+        .unwrap_or_default();
     let params: Vec<&(dyn ToSql + Sync)> = if server.is_some() {
         vec![&server_name]
     } else {
@@ -118,30 +133,24 @@ pub async fn get_clients(
         .collect())
 }
 
-pub async fn get_client_connections(
+/// Fetch the list of servers the client can connect to.
+pub async fn get_client_connections<S: Into<String>>(
     client: &tokio_postgres::Client,
-    name: &str,
+    name: S,
 ) -> Result<Vec<ServerConnection>, Error> {
     let stmt = client
         .prepare(
-            "SELECT name, host(subnet), masklen(subnet), host(servers.address), host(public_address), public_port, public_key, host(connections.address) \
+            "SELECT name, host(subnet), masklen(subnet), host(servers.address), \
+             host(public_address), public_port, public_key, host(connections.address) \
              FROM servers JOIN connections ON servers.name = connections.server \
              WHERE connections.client = $1",
         )
         .await?;
-    let rows = client.query(&stmt, &[&name.to_string()]).await?;
+    let rows = client.query(&stmt, &[&name.into()]).await?;
     Ok(rows
         .into_iter()
         .map(|row| ServerConnection {
-            server: Server {
-                name: row.get(0),
-                subnet_addr: IpAddr::from_str(row.get(1)).unwrap(),
-                subnet_len: row.get::<_, i32>(2) as u8,
-                address: IpAddr::from_str(row.get(3)).unwrap(),
-                public_address: IpAddr::from_str(row.get(4)).unwrap(),
-                public_port: row.get::<_, i32>(5) as u16,
-                public_key: row.get(6),
-            },
+            server: Server::from_sql(&row, 0),
             address: IpAddr::from_str(row.get(7)).unwrap(),
         })
         .collect())

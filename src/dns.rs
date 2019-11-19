@@ -11,6 +11,8 @@ pub async fn update_dns(config: &ServerConfig, client: &Client) -> Result<(), Er
     let conf = gen_dns_config(config, client).await?;
     debug!("DNS configuration:\n{}", conf);
     tokio::fs::write(config.dns_hosts_file.clone(), conf).await?;
+    // Try to reload dnsmasq without restarting it. IF dnsmasq is not used this can fail, but it's
+    // not a big deal.
     let child = Command::new("pkill")
         .arg("-SIGHUP")
         .arg("dnsmasq")
@@ -27,7 +29,7 @@ pub async fn update_dns(config: &ServerConfig, client: &Client) -> Result<(), Er
 /// Generate the dns configuration.
 async fn gen_dns_config(config: &ServerConfig, client: &Client) -> Result<String, Error> {
     let servers = schema::get_servers(client).await?;
-    let clients = schema::get_clients(client, None).await?;
+    let clients = schema::get_clients(client, None::<&str>).await?;
     let mut conf = gen_server_entries(config, &servers);
     conf += &gen_clients_entries(config, &clients);
     Ok(conf)

@@ -271,6 +271,8 @@ fn gen_server_to_client_peers(clients: &[ClientConnection]) -> String {
     conf
 }
 
+/// Generate the configuration file of a client. If the private key has not been passed, a
+/// placeholder is used instead.
 pub async fn gen_client_config(
     config: &ServerConfig,
     client: &Client,
